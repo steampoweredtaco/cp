@@ -1,6 +1,9 @@
 package cp
 
-import "fmt"
+import (
+	"fmt"
+	"sync"
+)
 
 type Shaper interface {
 	Body() *Body
@@ -21,6 +24,11 @@ type ShapeClass interface {
 const (
 	SHAPE_TYPE_NUM = 3
 )
+
+var contactPool = sync.Pool{New: func() interface{} {
+	contacts := make([]Contact, MAX_CONTACTS_PER_ARBITER)
+	return &contacts
+}}
 
 type Shape struct {
 	Class    ShapeClass
@@ -239,9 +247,9 @@ func NewShape(class ShapeClass, body *Body, massInfo *ShapeMassInfo) *Shape {
 }
 
 func ShapesCollide(a, b *Shape) ContactPointSet {
-	contacts := make([]Contact, MAX_CONTACTS_PER_ARBITER)
+	contactsPtr := contactPool.Get().(*[]Contact)
+	contacts := *contactsPtr
 	info := Collide(a, b, 0, contacts)
-
 	var set ContactPointSet
 	set.Count = info.count
 
@@ -266,6 +274,11 @@ func ShapesCollide(a, b *Shape) ContactPointSet {
 		}
 		set.Points[i].Distance = p2.Sub(p1).Dot(set.Normal)
 	}
-
+	// The reason to wait this long to put the ptr back in
+	// the pool has to do with how sync.Pool releases memory
+	// during gc so releasing as soon as grabbing it doesn't
+	// provide any advantage.
+	contactPool.Put(contactsPtr)
+	collisionInfoPool.Put(info)
 	return set
 }

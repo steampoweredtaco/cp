@@ -3,6 +3,7 @@ package cp
 import (
 	"log"
 	"math"
+	"sync"
 )
 
 const (
@@ -10,6 +11,10 @@ const (
 	maxEpaIterations  = 30
 	warnEpaIterations = 20
 )
+
+var collisionInfoPool = sync.Pool{New: func() interface{} {
+	return &CollisionInfo{}
+}}
 
 type SupportPoint struct {
 	p Vector
@@ -496,13 +501,16 @@ var BuiltinCollisionFuncs = [9]CollisionFunc{
 }
 
 // Collide performs a collision between two shapes
-func Collide(a, b *Shape, collisionID uint32, contacts []Contact) CollisionInfo {
-	info := CollisionInfo{
-		a:           a,
-		b:           b,
-		collisionId: collisionID,
-		arr:         contacts,
-	}
+func Collide(a, b *Shape, collisionID uint32, contacts []Contact) *CollisionInfo {
+	// Many allocations happen for shape collisions which causes
+	// a very high load on the managed gc which has a multiplicative
+	// affect of latency of the whole system. The pool usuage
+	// minimizes this affect.
+	info := collisionInfoPool.New().(*CollisionInfo)
+	info.a = a
+	info.b = b
+	info.collisionId = collisionID
+	info.arr = contacts
 
 	// Make sure the shape types are in order.
 	if a.Order() > b.Order() {
@@ -513,6 +521,6 @@ func Collide(a, b *Shape, collisionID uint32, contacts []Contact) CollisionInfo 
 		info.b = b
 	}
 
-	BuiltinCollisionFuncs[info.a.Order()+info.b.Order()*SHAPE_TYPE_NUM](&info)
+	BuiltinCollisionFuncs[info.a.Order()+info.b.Order()*SHAPE_TYPE_NUM](info)
 	return info
 }

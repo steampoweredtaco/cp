@@ -443,7 +443,7 @@ func SpaceCollideShapesFunc(obj interface{}, b *Shape, collisionId uint32, vspac
 		arb.Init(shapes.a, shapes.b)
 		return arb
 	})
-	arb.Update(&info, space)
+	arb.Update(info, space)
 
 	if arb.state == CP_ARBITER_STATE_FIRST_COLLISION && !arb.handler.BeginFunc(arb, space, arb.handler.UserData) {
 		arb.Ignore()
@@ -475,7 +475,9 @@ func SpaceCollideShapesFunc(obj interface{}, b *Shape, collisionId uint32, vspac
 
 	// Time stamp the arbiter so we know it was used recently.
 	arb.stamp = space.stamp
-	return info.collisionId
+	collisionID := info.collisionId
+	collisionInfoPool.Put(info)
+	return collisionID
 }
 
 func (space *Space) PushFreshContactBuffer() {
