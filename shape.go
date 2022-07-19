@@ -246,11 +246,14 @@ func NewShape(class ShapeClass, body *Body, massInfo *ShapeMassInfo) *Shape {
 	}
 }
 
-func ShapesCollide(a, b *Shape) ContactPointSet {
+// ShapesCollide populates set with points that make contact.
+// note: set is passed in to prevent heap allocation
+// and greatly increase performance due to minimizing the
+// load on gc.
+func ShapesCollide(a, b *Shape, set *ContactPointSet) {
 	contactsPtr := contactPool.Get().(*[]Contact)
 	contacts := *contactsPtr
 	info := Collide(a, b, 0, contacts)
-	var set ContactPointSet
 	set.Count = info.count
 
 	// Collide may have swapped the contact order, flip the normal.
@@ -279,6 +282,4 @@ func ShapesCollide(a, b *Shape) ContactPointSet {
 	// during gc so releasing as soon as grabbing it doesn't
 	// provide any advantage.
 	contactPool.Put(contactsPtr)
-	collisionInfoPool.Put(info)
-	return set
 }

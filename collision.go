@@ -3,7 +3,6 @@ package cp
 import (
 	"log"
 	"math"
-	"sync"
 )
 
 const (
@@ -11,10 +10,6 @@ const (
 	maxEpaIterations  = 30
 	warnEpaIterations = 20
 )
-
-var collisionInfoPool = sync.Pool{New: func() interface{} {
-	return &CollisionInfo{}
-}}
 
 type SupportPoint struct {
 	p Vector
@@ -86,9 +81,9 @@ type ClosestPoints struct {
 	collisionId uint32
 }
 
-type CollisionFunc func(info *CollisionInfo)
+type CollisionFunc func(info CollisionInfo) CollisionInfo
 
-func CircleToCircle(info *CollisionInfo) {
+func CircleToCircle(info CollisionInfo) CollisionInfo {
 	c1 := info.a.Class.(*Circle)
 	c2 := info.b.Class.(*Circle)
 
@@ -105,13 +100,14 @@ func CircleToCircle(info *CollisionInfo) {
 		}
 		info.PushContact(c1.tc.Add(info.n.Mult(c1.r)), c2.tc.Add(info.n.Mult(-c2.r)), 0)
 	}
+	return info
 }
 
-func CollisionError(_ *CollisionInfo) {
+func CollisionError(_ CollisionInfo) CollisionInfo {
 	panic("Shape types are not sorted")
 }
 
-func CircleToSegment(info *CollisionInfo) {
+func CircleToSegment(info CollisionInfo) CollisionInfo {
 	circle := info.a.Class.(*Circle)
 	segment := info.b.Class.(*Segment)
 
@@ -141,9 +137,10 @@ func CircleToSegment(info *CollisionInfo) {
 			info.PushContact(center.Add(n.Mult(circle.r)), closest.Add(n.Mult(-segment.r)), 0)
 		}
 	}
+	return info
 }
 
-func SegmentToSegment(info *CollisionInfo) {
+func SegmentToSegment(info CollisionInfo) CollisionInfo {
 	seg1 := info.a.Class.(*Segment)
 	seg2 := info.b.Class.(*Segment)
 
@@ -155,7 +152,7 @@ func SegmentToSegment(info *CollisionInfo) {
 	rot2 := seg2.body.Rotation()
 
 	if points.d > (seg1.r + seg2.r) {
-		return
+		return info
 	}
 
 	if (!points.a.Equal(seg1.ta) || n.Dot(seg1.a_tangent.Rotate(rot1)) <= 0) &&
@@ -164,9 +161,10 @@ func SegmentToSegment(info *CollisionInfo) {
 		(!points.b.Equal(seg2.tb) || n.Dot(seg2.b_tangent.Rotate(rot2)) >= 0) {
 		ContactPoints(SupportEdgeForSegment(seg1, n), SupportEdgeForSegment(seg2, n.Neg()), points, info)
 	}
+	return info
 }
 
-func CircleToPoly(info *CollisionInfo) {
+func CircleToPoly(info CollisionInfo) CollisionInfo {
 	context := SupportContext{info.a, info.b, CircleSupportPoint, PolySupportPoint}
 	points := GJK(context, &info.collisionId)
 
@@ -177,9 +175,10 @@ func CircleToPoly(info *CollisionInfo) {
 		info.n = points.n
 		info.PushContact(points.a.Add(info.n.Mult(circle.r)), points.b.Add(info.n.Mult(poly.r)), 0)
 	}
+	return info
 }
 
-func SegmentToPoly(info *CollisionInfo) {
+func SegmentToPoly(info CollisionInfo) CollisionInfo {
 	context := SupportContext{info.a, info.b, SegmentSupportPoint, PolySupportPoint}
 	points := GJK(context, &info.collisionId)
 
@@ -196,9 +195,10 @@ func SegmentToPoly(info *CollisionInfo) {
 		(!points.a.Equal(segment.tb) || n.Dot(segment.b_tangent.Rotate(rot)) <= 0)) {
 		ContactPoints(SupportEdgeForSegment(segment, n), SupportEdgeForPoly(polyshape, n.Neg()), points, info)
 	}
+	return info
 }
 
-func PolyToPoly(info *CollisionInfo) {
+func PolyToPoly(info CollisionInfo) CollisionInfo {
 	context := SupportContext{info.a, info.b, PolySupportPoint, PolySupportPoint}
 	points := GJK(context, &info.collisionId)
 
@@ -209,6 +209,7 @@ func PolyToPoly(info *CollisionInfo) {
 	if points.d-poly1.r-poly2.r <= 0 {
 		ContactPoints(SupportEdgeForPoly(poly1, points.n), SupportEdgeForPoly(poly2, points.n.Neg()), points, info)
 	}
+	return info
 }
 
 // MinkowskiPoint is a point on the surface of two shapes' minkowski difference.
@@ -314,11 +315,11 @@ func SupportEdgeForPoly(poly *PolyShape, n Vector) Edge {
 }
 
 // ContactPoints finds contact point pairs on two support edges' surfaces
-func ContactPoints(e1, e2 Edge, points ClosestPoints, info *CollisionInfo) {
+func ContactPoints(e1, e2 Edge, points ClosestPoints, info CollisionInfo) CollisionInfo {
 	mindist := e1.r + e2.r
 
 	if points.d > mindist {
-		return
+		return info
 	}
 
 	n := points.n
@@ -353,6 +354,7 @@ func ContactPoints(e1, e2 Edge, points ClosestPoints, info *CollisionInfo) {
 			info.PushContact(p1, p2, hash1b2a)
 		}
 	}
+	return info
 }
 
 const hashCoef = 3344921057
@@ -501,12 +503,12 @@ var BuiltinCollisionFuncs = [9]CollisionFunc{
 }
 
 // Collide performs a collision between two shapes
-func Collide(a, b *Shape, collisionID uint32, contacts []Contact) *CollisionInfo {
+func Collide(a, b *Shape, collisionID uint32, contacts []Contact) CollisionInfo {
 	// Many allocations happen for shape collisions which causes
 	// a very high load on the managed gc which has a multiplicative
 	// affect of latency of the whole system. The pool usuage
 	// minimizes this affect.
-	info := collisionInfoPool.New().(*CollisionInfo)
+	var info CollisionInfo
 	info.a = a
 	info.b = b
 	info.collisionId = collisionID
@@ -521,6 +523,6 @@ func Collide(a, b *Shape, collisionID uint32, contacts []Contact) *CollisionInfo
 		info.b = b
 	}
 
-	BuiltinCollisionFuncs[info.a.Order()+info.b.Order()*SHAPE_TYPE_NUM](info)
+	info = BuiltinCollisionFuncs[info.a.Order()+info.b.Order()*SHAPE_TYPE_NUM](info)
 	return info
 }

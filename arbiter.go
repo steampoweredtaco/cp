@@ -183,7 +183,7 @@ func (arb *Arbiter) PreStep(dt, slop, bias float64) {
 	}
 }
 
-func (arb *Arbiter) Update(info *CollisionInfo, space *Space) {
+func (arb *Arbiter) Update(info CollisionInfo, space *Space) CollisionInfo {
 	a := info.a
 	b := info.b
 
@@ -252,6 +252,7 @@ func (arb *Arbiter) Update(info *CollisionInfo, space *Space) {
 	if arb.state == CP_ARBITER_STATE_CACHED {
 		arb.state = CP_ARBITER_STATE_FIRST_COLLISION
 	}
+	return info
 }
 
 func (arb *Arbiter) Ignore() bool {

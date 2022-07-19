@@ -443,7 +443,7 @@ func SpaceCollideShapesFunc(obj interface{}, b *Shape, collisionId uint32, vspac
 		arb.Init(shapes.a, shapes.b)
 		return arb
 	})
-	arb.Update(info, space)
+	info = arb.Update(info, space)
 
 	if arb.state == CP_ARBITER_STATE_FIRST_COLLISION && !arb.handler.BeginFunc(arb, space, arb.handler.UserData) {
 		arb.Ignore()
@@ -476,7 +476,6 @@ func SpaceCollideShapesFunc(obj interface{}, b *Shape, collisionId uint32, vspac
 	// Time stamp the arbiter so we know it was used recently.
 	arb.stamp = space.stamp
 	collisionID := info.collisionId
-	collisionInfoPool.Put(info)
 	return collisionID
 }
 
@@ -1092,7 +1091,7 @@ func (space *Space) AddPostStepCallback(f PostStepCallbackFunc, key, data interf
 }
 
 // ShapeQuery queries a space for any shapes overlapping the given shape and call the callback for each shape found.
-func (space *Space) ShapeQuery(shape *Shape, callback func(shape *Shape, points *ContactPointSet)) bool {
+func (space *Space) ShapeQuery(shape *Shape, callback func(shape *Shape, points ContactPointSet)) bool {
 	body := shape.body
 	var bb BB
 	if body != nil {
@@ -1110,10 +1109,11 @@ func (space *Space) ShapeQuery(shape *Shape, callback func(shape *Shape, points 
 			return collisionId
 		}
 
-		contactPointSet := ShapesCollide(a, b)
+		contactPointSet := &ContactPointSet{}
+		ShapesCollide(a, b, contactPointSet)
 		if contactPointSet.Count > 0 {
 			if callback != nil {
-				callback(b, &contactPointSet)
+				callback(b, *contactPointSet)
 			}
 			anyCollision = !(a.sensor || b.sensor)
 		}
