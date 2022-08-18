@@ -159,7 +159,7 @@ func SegmentToSegment(info CollisionInfo) CollisionInfo {
 		(!points.a.Equal(seg1.tb) || n.Dot(seg1.b_tangent.Rotate(rot1)) <= 0) &&
 		(!points.b.Equal(seg2.ta) || n.Dot(seg2.a_tangent.Rotate(rot2)) >= 0) &&
 		(!points.b.Equal(seg2.tb) || n.Dot(seg2.b_tangent.Rotate(rot2)) >= 0) {
-		ContactPoints(SupportEdgeForSegment(seg1, n), SupportEdgeForSegment(seg2, n.Neg()), points, info)
+		info = ContactPoints(SupportEdgeForSegment(seg1, n), SupportEdgeForSegment(seg2, n.Neg()), points, info)
 	}
 	return info
 }
@@ -193,7 +193,7 @@ func SegmentToPoly(info CollisionInfo) CollisionInfo {
 	// Reject endcap collisions if tangents are provided.
 	(!points.a.Equal(segment.ta) || n.Dot(segment.a_tangent.Rotate(rot)) <= 0) &&
 		(!points.a.Equal(segment.tb) || n.Dot(segment.b_tangent.Rotate(rot)) <= 0)) {
-		ContactPoints(SupportEdgeForSegment(segment, n), SupportEdgeForPoly(polyshape, n.Neg()), points, info)
+		info = ContactPoints(SupportEdgeForSegment(segment, n), SupportEdgeForPoly(polyshape, n.Neg()), points, info)
 	}
 	return info
 }
@@ -207,7 +207,7 @@ func PolyToPoly(info CollisionInfo) CollisionInfo {
 	poly1 := info.a.Class.(*PolyShape)
 	poly2 := info.b.Class.(*PolyShape)
 	if points.d-poly1.r-poly2.r <= 0 {
-		ContactPoints(SupportEdgeForPoly(poly1, points.n), SupportEdgeForPoly(poly2, points.n.Neg()), points, info)
+		info = ContactPoints(SupportEdgeForPoly(poly1, points.n), SupportEdgeForPoly(poly2, points.n.Neg()), points, info)
 	}
 	return info
 }
